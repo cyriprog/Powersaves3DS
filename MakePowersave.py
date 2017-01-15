@@ -6,29 +6,7 @@ import binascii
 import codecs
 import struct
 import sys
-
-if sys.version_info[0] >= 3:
-    xrange = range
-
-
-# Build CRC32 table.
-DATEL_CRC32_TABLE = [0] * 256
-for x in xrange(256):
-    value = x
-    for y in xrange(8):
-        value = (value >> 1) ^ (0xEDB88320 if value & 1 else 0x00000000)
-    DATEL_CRC32_TABLE[x] = value
-
-
-# Slightly strange Datel CRC32 means we can't use binascii.crc32.
-def datel_crc32(data, crc = 0):
-    for x in xrange(len(data)):
-        crc = DATEL_CRC32_TABLE[(crc & 0xFF) ^ ord(data[x:x + 1])] ^ (crc >> 8)
-    return crc
-
-
-def encode_dword(x):
-    return struct.pack(b"<I", x)
+import Common
 
 
 def syntax():
@@ -49,28 +27,28 @@ def main(argv):
 
     # Build the basic part of the header.
     header = b''
-    header += encode_dword(0x64B354D3)  # magic
-    header += encode_dword(0x9C)        # size of header
-    header += encode_dword(1000)        # version?
-    header += encode_dword(0)           # unknown; seems always zero
-    header += encode_dword(0x18)        # size of first part of header?
+    header += Common.encode_dword(0x64B354D3)  # magic
+    header += Common.encode_dword(0x9C)        # size of header
+    header += Common.encode_dword(1000)        # version?
+    header += Common.encode_dword(0)           # unknown; seems always zero
+    header += Common.encode_dword(0x18)        # size of first part of header?
     assert len(header) == 0x14
 
     # The CRC32 of the first part of the header is written to offset 0x14.
     # The CRC32 checksums its own field, but as zero during the checksum.
-    header += encode_dword(datel_crc32(header + encode_dword(0)))
+    header += Common.encode_dword(Common.datel_crc32(header + Common.encode_dword(0)))
 
     outfile.write(header)
 
     # Calculate Datel-CRC32 of payload.
-    payload_crc = datel_crc32(b'')
+    payload_crc = Common.datel_crc32(b'')
     while True:
         data = infile.read(16384)
         if len(data) == 0:
             break
-        payload_crc = datel_crc32(data, payload_crc)
+        payload_crc = Common.datel_crc32(data, payload_crc)
 
-    outfile.write(encode_dword(payload_crc))
+    outfile.write(Common.encode_dword(payload_crc))
 
     # Truncate the string to 64 UTF-16 characters.
     description = description[:0x40 * 2]
